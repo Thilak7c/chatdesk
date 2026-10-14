@@ -1,0 +1,49 @@
+{
+  "name": "chatdesk-mcp",
+  "version": "0.1.0",
+  "mcpName": "io.github.Thilak7c/chatdesk-mcp",
+  "description": "Model Context Protocol (MCP) server for ChatDesk — drive your self-hosted WhatsApp CRM from Claude, Cursor, and other MCP clients.",
+  "license": "MIT",
+  "author": "Thilak Sundaram",
+  "homepage": "https://github.com/Thilak7c/chatdesk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Thilak7c/chatdesk.git",
+    "directory": "mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "chatdesk",
+    "whatsapp",
+    "crm",
+    "claude",
+    "ai"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "chatdesk-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.7.0"
+  }
+}

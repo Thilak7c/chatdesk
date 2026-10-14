@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Thilak7c/chatdesk-mcp",
+  "description": "Drive a self-hosted ChatDesk WhatsApp CRM from Claude, Cursor and other MCP clients.",
+  "repository": {
+    "url": "https://github.com/Thilak7c/chatdesk",
+    "source": "github",
+    "subfolder": "mcp-server"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "chatdesk-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CHATDESK_BASE_URL",
+          "description": "Base URL of your ChatDesk instance, e.g. https://crm.example.com",
+          "isRequired": true,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "CHATDESK_API_KEY",
+          "description": "ChatDesk API key (Settings → API keys). Its scopes decide what is allowed.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "CHATDESK_ENABLE_WRITES",
+          "description": "Set to true to expose contact create/update and message sending. Read-only when unset.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "CHATDESK_ENABLE_BROADCASTS",
+          "description": "Set to true to expose the mass-broadcast tool. Requires CHATDESK_ENABLE_WRITES.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

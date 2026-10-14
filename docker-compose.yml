@@ -1,0 +1,101 @@
+name: chatdesk
+
+# Everything ChatDesk needs, on one host:
+#   app      — Next.js + Socket.io (custom server.js), runs migrations on start
+#   db       — PostgreSQL 16 with pgvector
+#   storage  — SeaweedFS (S3-compatible object storage for media)
+#
+# Only the app is published; Postgres and storage stay on the internal
+# network (media is served through the app at /api/storage/...).
+
+services:
+  app:
+    build:
+      context: .
+      # NEXT_PUBLIC_* vars are inlined at build time — forward them as
+      # build args. Changing any of them requires a rebuild
+      # (docker compose up --build).
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+        NEXT_PUBLIC_APP_LOCALE: ${NEXT_PUBLIC_APP_LOCALE:-en}
+    # Runtime (server-only) secrets come from .env.local; they are
+    # never baked into the image.
+    env_file:
+      - .env.local
+    # Pinned here because `environment` wins over `env_file`: the app
+    # always talks to the bundled db/storage services and listens on
+    # 3000, whatever .env.local says for local (non-Docker) development.
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://chatdesk:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.local}@db:5432/chatdesk
+      S3_ENDPOINT: http://storage:8333
+      S3_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-chatdesk}
+      S3_SECRET_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env.local}
+      S3_BUCKET: ${S3_BUCKET:-chatdesk}
+    # Host side only — HOST_PORT=8080 publishes the app on :8080.
+    ports:
+      - '${HOST_PORT:-3000}:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/login').then((r)=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: chatdesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.local}
+      POSTGRES_DB: chatdesk
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U chatdesk -d chatdesk']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  storage:
+    image: chrislusf/seaweedfs:3.85
+    # S3-compatible object store. Writes its S3 credentials file from
+    # the environment, then runs a single-node server (master + volume +
+    # filer + S3 gateway). Anonymous requests are refused.
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        printf '{"identities":[{"name":"chatdesk","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}'
+        "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json
+        && exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    environment:
+      S3_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-chatdesk}
+      S3_SECRET_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env.local}
+    volumes:
+      - storage-data:/data
+    restart: unless-stopped
+    healthcheck:
+      # Any HTTP answer from the S3 port (403 for an anonymous request)
+      # means it's up.
+      test: ['CMD-SHELL', 'wget -S -q -O /dev/null http://127.0.0.1:8333/ 2>&1 | grep -q "HTTP/"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  db-data:
+  storage-data:

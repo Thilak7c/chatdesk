@@ -1,0 +1,70 @@
+name: Migrations
+
+# Keeps the database schema honest:
+#   1. src/db/schema.ts and the SQL under drizzle/ must agree — a schema
+#      change without a generated migration fails here.
+#   2. Every migration must apply, in order, to an empty database.
+
+on:
+  pull_request:
+    paths:
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'drizzle.config.ts'
+      - '.github/workflows/migrations.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/db/**'
+      - 'drizzle/**'
+      - 'drizzle.config.ts'
+      - '.github/workflows/migrations.yml'
+
+concurrency:
+  group: migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Schema in sync, migrations apply cleanly
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://chatdesk:chatdesk@localhost:5432/chatdesk
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: chatdesk
+          POSTGRES_PASSWORD: chatdesk
+          POSTGRES_DB: chatdesk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chatdesk -d chatdesk"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Migration journal is consistent
+        run: npx drizzle-kit check
+
+      - name: schema.ts has no ungenerated changes
+        run: |
+          npx drizzle-kit generate --name=ci-drift-check
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::src/db/schema.ts changed without a migration. Run 'npm run db:generate' and commit the result."
+            git status --porcelain drizzle
+            exit 1
+          fi
+
+      - name: Apply every migration to an empty database
+        run: npm run db:migrate
